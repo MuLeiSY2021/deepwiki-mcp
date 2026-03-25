@@ -172,6 +172,67 @@ server.tool(
   }
 );
 
+// --- Tool: search_repo ---
+server.tool(
+  "search_repo",
+  "Semantic search over a repository's SOURCE CODE (not wiki pages). Queries the vector index built from the repo's actual code files, returning the most relevant code chunks. Use this when you need to find specific implementations, functions, or patterns in the codebase. The repo must be indexed in deepwiki-open first.",
+  {
+    repo_url: z
+      .string()
+      .describe("Full repository URL (e.g. 'https://github.com/user/repo')"),
+    query: z.string().describe("Search query describing what you're looking for"),
+    type: z
+      .enum(["github", "gitlab", "bitbucket"])
+      .default("github")
+      .describe("Repository hosting platform"),
+    top_k: z
+      .number()
+      .int()
+      .min(1)
+      .max(20)
+      .default(5)
+      .describe("Number of code chunks to return (1-20)"),
+  },
+  async ({ repo_url, query, type, top_k }) => {
+    try {
+      const res = await fetch(`${DEEPWIKI_HOST}/api/retrieve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ repo_url, query, type, top_k }),
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`HTTP ${res.status}: ${err}`);
+      }
+      const data = await res.json();
+      if (!data.results || data.results.length === 0) {
+        return {
+          content: [{
+            type: "text",
+            text: `No results found for "${query}". The repo may need to be indexed first.`,
+          }],
+        };
+      }
+
+      const chunks = data.results.map((r, i) => {
+        const header = `### [${i + 1}] ${r.file_path}${r.is_code ? " (code)" : ""}`;
+        return `${header}\n\n${r.text}`;
+      });
+
+      const output = [
+        `Found ${data.results.length} relevant chunks (out of ${data.total_chunks} total):`,
+        "",
+        ...chunks,
+      ].join("\n\n");
+
+      return { content: [{ type: "text", text: output }] };
+    } catch (e) {
+      return { content: [{ type: "text", text: `Error searching repo: ${e.message}` }], isError: true };
+    }
+  }
+);
+
 // --- Start ---
 const transport = new StdioServerTransport();
 await server.connect(transport);

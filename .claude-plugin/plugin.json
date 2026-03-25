@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "Query any code repository using deepwiki-open's RAG pipeline, directly from Claude Code.",
   "author": {
-    "name": "mulei"
+    "name": "MuLeiSY2021"
   },
   "repository": "https://github.com/MuLeiSY2021/deepwiki-mcp",
   "license": "MIT"

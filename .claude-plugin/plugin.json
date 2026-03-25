@@ -1,0 +1,10 @@
+{
+  "name": "deepwiki-mcp",
+  "version": "0.1.0",
+  "description": "Query any code repository using deepwiki-open's RAG pipeline, directly from Claude Code.",
+  "author": {
+    "name": "mulei"
+  },
+  "repository": "https://github.com/mulei/deepwiki-mcp",
+  "license": "MIT"
+}

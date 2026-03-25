@@ -2,10 +2,7 @@
   "mcpServers": {
     "deepwiki": {
       "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/servers/index.js"],
-      "env": {
-        "DEEPWIKI_HOST": "${DEEPWIKI_HOST:-http://localhost:3000}"
-      }
+      "args": ["${CLAUDE_PLUGIN_ROOT}/servers/index.js"]
     }
   }
 }

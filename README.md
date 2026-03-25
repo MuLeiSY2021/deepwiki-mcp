@@ -9,7 +9,7 @@ A Claude Code plugin that connects [deepwiki-open](https://github.com/AsyncFuncA
 
 ## Prerequisites
 
-- [deepwiki-open](https://github.com/AsyncFuncAI/deepwiki-open) running locally (default: `http://localhost:3000`)
+- [deepwiki-open](https://github.com/AsyncFuncAI/deepwiki-open) running locally (default: `http://localhost:8001`)
 - [Claude Code](https://claude.ai/code) installed
 - Node.js 18+
 
@@ -41,10 +41,10 @@ claude plugin install --scope user --source /path/to/deepwiki-mcp
 Set the `DEEPWIKI_HOST` environment variable to point to your deepwiki-open instance:
 
 ```bash
-export DEEPWIKI_HOST=http://localhost:3000
+export DEEPWIKI_HOST=http://localhost:8001
 ```
 
-Default: `http://localhost:3000`
+Default: `http://localhost:8001`
 
 ## Usage
 

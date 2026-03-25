@@ -1,0 +1,15 @@
+{
+  "name": "deepwiki-mcp-marketplace",
+  "owner": {
+    "name": "mulei"
+  },
+  "metadata": {
+    "description": "deepwiki-open plugin for Claude Code"
+  },
+  "plugins": [
+    {
+      "name": "deepwiki-mcp",
+      "source": "./"
+    }
+  ]
+}

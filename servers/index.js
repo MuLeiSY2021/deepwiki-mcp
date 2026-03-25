@@ -4,12 +4,29 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 
 const DEEPWIKI_HOST =
-  process.env.DEEPWIKI_HOST || "http://localhost:3000";
+  process.env.DEEPWIKI_HOST || "http://localhost:8001";
 
 const server = new McpServer({
   name: "deepwiki",
-  version: "0.1.0",
+  version: "0.2.0",
 });
+
+// In-memory cache to avoid re-fetching full wiki for each page request
+const wikiCache = new Map();
+
+async function fetchWikiData(owner, repo, repo_type, language) {
+  const key = `${repo_type}:${owner}/${repo}:${language}`;
+  if (wikiCache.has(key)) return wikiCache.get(key);
+
+  const params = new URLSearchParams({ owner, repo, repo_type, language });
+  const res = await fetch(`${DEEPWIKI_HOST}/api/wiki_cache?${params}`, {
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  if (data) wikiCache.set(key, data);
+  return data;
+}
 
 // --- Tool: list_projects ---
 server.tool(
@@ -36,10 +53,10 @@ server.tool(
   }
 );
 
-// --- Tool: get_wiki_cache ---
+// --- Tool: get_wiki_structure ---
 server.tool(
-  "get_wiki_cache",
-  "Get cached wiki pages for a repository. Returns the wiki structure and page contents.",
+  "get_wiki_structure",
+  "Get the wiki table of contents for a repository. Returns page IDs, titles, and importance levels. Use this first to discover available pages, then fetch specific pages with get_wiki_page.",
   {
     owner: z.string().describe("Repository owner (e.g. 'AsyncFuncAI')"),
     repo: z.string().describe("Repository name (e.g. 'deepwiki-open')"),
@@ -54,90 +71,103 @@ server.tool(
   },
   async ({ owner, repo, repo_type, language }) => {
     try {
-      const params = new URLSearchParams({ owner, repo, repo_type, language });
-      const res = await fetch(
-        `${DEEPWIKI_HOST}/api/wiki_cache?${params}`,
-        { signal: AbortSignal.timeout(30_000) }
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const data = await fetchWikiData(owner, repo, repo_type, language);
       if (!data) {
         return {
           content: [{
             type: "text",
-            text: `No wiki cache found for ${owner}/${repo}. The repo may need to be indexed first via the deepwiki-open web UI.`,
+            text: `No wiki found for ${owner}/${repo}. Index it first via the deepwiki-open web UI.`,
           }],
         };
       }
-      return {
-        content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
-      };
+
+      const structure = data.wiki_structure || data;
+      const title = structure.title || `${owner}/${repo}`;
+      const description = structure.description || "";
+      const pages = structure.pages || [];
+
+      const toc = pages.map((p) => {
+        const importance = p.importance ? ` [${p.importance}]` : "";
+        return `- **${p.title}** (id: \`${p.id}\`)${importance}`;
+      });
+
+      const output = [
+        `# ${title}`,
+        "",
+        description,
+        "",
+        `## Pages (${pages.length})`,
+        "",
+        ...toc,
+      ].join("\n");
+
+      return { content: [{ type: "text", text: output }] };
     } catch (e) {
-      return { content: [{ type: "text", text: `Error fetching wiki cache: ${e.message}` }], isError: true };
+      return { content: [{ type: "text", text: `Error fetching wiki structure: ${e.message}` }], isError: true };
     }
   }
 );
 
-// --- Tool: ask_repo ---
+// --- Tool: get_wiki_page ---
 server.tool(
-  "ask_repo",
-  "Ask a question about a code repository using deepwiki-open's RAG pipeline.",
+  "get_wiki_page",
+  "Get the full content of a specific wiki page by its ID. Use get_wiki_structure first to find available page IDs.",
   {
-    repo_url: z
+    owner: z.string().describe("Repository owner (e.g. 'AsyncFuncAI')"),
+    repo: z.string().describe("Repository name (e.g. 'deepwiki-open')"),
+    page_id: z.string().describe("Page ID from get_wiki_structure (e.g. 'page-system-architecture')"),
+    repo_type: z
+      .enum(["github", "gitlab", "bitbucket"])
+      .default("github")
+      .describe("Repository hosting platform"),
+    language: z
       .string()
-      .describe("Full repository URL (e.g. 'https://github.com/user/repo')"),
-    question: z.string().describe("The question to ask about the repository"),
-    provider: z
-      .string()
-      .optional()
-      .describe("LLM provider (optional, e.g. 'google', 'openai', 'openrouter')"),
-    model: z
-      .string()
-      .optional()
-      .describe("Model name (optional, uses deepwiki-open default if empty)"),
+      .default("en")
+      .describe("Language code (en, zh, ja, etc.)"),
   },
-  async ({ repo_url, question, provider, model }) => {
-    const body = {
-      repo_url,
-      messages: [{ role: "user", content: question }],
-    };
-    if (provider) body.provider = provider;
-    if (model) body.model = model;
-
+  async ({ owner, repo, page_id, repo_type, language }) => {
     try {
-      const res = await fetch(`${DEEPWIKI_HOST}/chat/completions/stream`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(120_000),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-      // Parse SSE stream
-      const text = await res.text();
-      const chunks = [];
-      for (const line of text.split("\n")) {
-        if (line.startsWith("data: ")) {
-          const payload = line.slice(6);
-          if (payload.trim() === "[DONE]") break;
-          chunks.push(payload);
-        } else if (line && !line.startsWith(":")) {
-          chunks.push(line);
-        }
-      }
-
-      const answer = chunks.join("");
-      if (!answer) {
+      const data = await fetchWikiData(owner, repo, repo_type, language);
+      if (!data) {
         return {
           content: [{
             type: "text",
-            text: "No response received from deepwiki-open. The repo may need to be indexed first.",
+            text: `No wiki found for ${owner}/${repo}. Index it first via the deepwiki-open web UI.`,
           }],
         };
       }
-      return { content: [{ type: "text", text: answer }] };
+
+      const structure = data.wiki_structure || data;
+      const pages = structure.pages || [];
+      const page = pages.find((p) => p.id === page_id);
+
+      if (!page) {
+        const available = pages.map((p) => p.id).join(", ");
+        return {
+          content: [{
+            type: "text",
+            text: `Page "${page_id}" not found. Available pages: ${available}`,
+          }],
+        };
+      }
+
+      const filePaths = page.filePaths || [];
+      const related = page.relatedPages || [];
+
+      const output = [
+        `# ${page.title}`,
+        "",
+        filePaths.length ? `**Files:** ${filePaths.join(", ")}` : "",
+        related.length ? `**Related pages:** ${related.join(", ")}` : "",
+        "",
+        page.content || "(No content generated for this page)",
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      return { content: [{ type: "text", text: output }] };
     } catch (e) {
-      return { content: [{ type: "text", text: `Error querying deepwiki-open: ${e.message}` }], isError: true };
+      return { content: [{ type: "text", text: `Error fetching wiki page: ${e.message}` }], isError: true };
     }
   }
 );

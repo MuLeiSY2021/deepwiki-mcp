@@ -28,7 +28,7 @@ A Claude Code plugin that connects [deepwiki-open](https://github.com/AsyncFuncA
 ### Manual / Local development
 
 ```bash
-git clone https://github.com/mulei/deepwiki-mcp.git
+git clone https://github.com/MuLeiSY2021/deepwiki-mcp.git
 cd deepwiki-mcp/servers
 npm install
 

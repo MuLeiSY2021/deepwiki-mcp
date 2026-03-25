@@ -14,7 +14,7 @@ A Claude Code plugin that connects [deepwiki-open](https://github.com/AsyncFuncA
 | `list_projects` | — | List all indexed repositories |
 | `get_wiki_structure` | Wiki table of contents | Discover available documentation pages |
 | `get_wiki_page` | Wiki page content | Read AI-generated documentation for a specific topic |
-| `search_repo` | **Repository source code** | Semantic vector search over the actual codebase (requires [#PR] `/api/retrieve` endpoint) |
+| `search_repo` | **Repository source code** | Semantic vector search over the actual codebase (requires [PR #496](https://github.com/AsyncFuncAI/deepwiki-open/pull/496)) |
 
 ## Prerequisites
 
@@ -22,7 +22,7 @@ A Claude Code plugin that connects [deepwiki-open](https://github.com/AsyncFuncA
 - [Claude Code](https://claude.ai/code) installed
 - Node.js 18+
 
-> **Note:** `search_repo` requires the `/api/retrieve` endpoint, which is proposed in [this PR](https://github.com/AsyncFuncAI/deepwiki-open/pull/XXX). Until it's merged, only the wiki-based tools are available out of the box.
+> **Note:** `search_repo` requires the `/api/retrieve` endpoint proposed in [PR #496](https://github.com/AsyncFuncAI/deepwiki-open/pull/496). Until merged, only wiki-based tools are available out of the box.
 
 ## Installation
 
